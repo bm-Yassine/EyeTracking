@@ -1,0 +1,2 @@
+[console_scripts]
+eye-cam-calibrate = eyetracker.app.cam_calibrate:main

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eyetracker"
+version = "0.1.0"
+description = "Webcam eye tracker: calibration & gaze pipeline"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "CTU" }
+authors = [{ name = "Yassine Bendimerad" }]
+
+dependencies = [
+  "opencv-contrib-python>=4.8",
+  "numpy>=1.24",
+  "pyyaml>=6.0",
+  "pydantic>=2.6",
+  "pyarrow>=16.0"
+]
+
+[project.optional-dependencies]
+# Install with: pip install -e ".[mediapipe]"
+mediapipe = ["mediapipe>=0.10.9"]
+# Install with: pip install -e ".[spiga]"
+spiga = ["torch>=2.2"]
+# Install with: pip install -e ".[pandas]"
+pandas = ["pandas>=2.2"]
+# Dev tools
+dev = ["pytest>=7", "ruff>=0.4", "mypy>=1.7", "types-PyYAML", "types-opencv-python"]
+
+[project.scripts]
+eye-cam-calibrate = "eyetracker.app.cam_calibrate:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["eyetracker*"]
