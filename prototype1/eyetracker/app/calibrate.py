@@ -285,12 +285,14 @@ def main():
                         axis = np.float32([[80,0,0],[0,80,0],[0,0,80]]).reshape(-1,3)
                         origin = np.float32([[0,0,0]]).reshape(-1,3)
                         pts, _ = cv2.projectPoints(np.vstack([origin, axis]), hp.rvec, hp.tvec, K, dist)
-                        pts2 = np.squeeze(pts, axis=1)             # (4,2)
-                        p_o, p_x, p_y, p_z = [tuple(int(round(v)) for v in p) for p in pts2]
-
-                        cv2.line(fr, p_o, p_x, (0,0,255), 2)
-                        cv2.line(fr, p_o, p_y, (0,255,0), 2)
-                        cv2.line(fr, p_o, p_z, (255,0,0), 2)
+                        o, x, y, z = pts.reshape(-1,2)
+                        o = (int(round(o[0])), int(round(o[1])))
+                        x = (int(round(x[0])), int(round(x[1])))
+                        y = (int(round(y[0])), int(round(y[1])))
+                        z = (int(round(z[0])), int(round(z[1])))
+                        cv2.line(fr, tuple(o), tuple(x), (0,0,255), 2)  # X red, Y green, Z blue in OpenCV examples. :contentReference[oaicite:8]{index=8}
+                        cv2.line(fr, tuple(o), tuple(y), (0,255,0), 2)
+                        cv2.line(fr, tuple(o), tuple(z), (255,0,0), 2)
                         cv2.putText(fr, f"Head y/p/r: {yaw:5.1f} {pitch:5.1f} {roll:5.1f} deg",
                                     (10,30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2, cv2.LINE_AA)
                         cv2.putText(fr, f"dist {hp.distance_mm:5.0f}mm",
