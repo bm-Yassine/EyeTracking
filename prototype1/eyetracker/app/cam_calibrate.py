@@ -6,11 +6,11 @@ import numpy as np
 from pathlib import Path
 
 from ..video.capture import CameraCapture
-from ..vision.camera_model import (
+from ..video.camera_model import (
     calibrate_checkerboard, calibrate_charuco,
     save_intrinsics, undistort_image
 )
-from ..vision.camera_utils import ensure_pose_diversity, draw_found_corners
+from ..video.camera_utils import ensure_pose_diversity, draw_found_corners
 
 def _put_hud(frame, text_lines, pos):
     y = 24

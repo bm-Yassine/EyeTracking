@@ -5,8 +5,23 @@ camera:
   fps: 30
   intrinsics_path: "data/camera/cam0.yaml"   # written by eye-cam-calibrate
 
+screen:
+  # physical monitor size in meters
+  physical_width_m: 0.349
+  physical_height_m: 0.241
+  # primary screen resolution used by your UI
+  res_w: 2880
+  res_h: 1800
+  # set this if you measured camera→screen distance with a ruler
+  camera_to_screen_m: 0.00   # leave absent to auto-probe when RealSense depth is available
+  # if the camera principal point is not at the screen center, specify offsets in meters
+  camera_offset_x_m: 0.00    # +X is right
+  camera_offset_y_m: -0.108    # +Y is down (match your image convention)
+
+  plane_path: data/screen/screen_plane.yaml
+
 backend:
-  landmarks: "mediapipe"     # "mediapipe" | "spiga"
+  landmarks: "mediapipe"     # "mediapipe" | "other feature extractors" 
 
 paths:
   sessions_dir: "data/sessions"
@@ -36,4 +51,4 @@ samples:
   min_frames: 18
   max_frames: 80
   auto_capture: true
-  min_motion_px: 20            # ensure pose diversity
+  min_motion_px: 30            # ensure pose diversity

@@ -73,7 +73,6 @@ class FrameRow(BaseModel):
     # quality
     face_present: bool
     blink: bool
-    landmark_score: float
 
     # target (screen px) at click frames; else NaN
     target_x: float
