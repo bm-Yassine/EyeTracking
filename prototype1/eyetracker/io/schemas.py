@@ -49,19 +49,14 @@ class FrameRow(BaseModel):
     t_mono: float
     frame_id: int
 
-    # screen meta (for normalization reproducibility)
-    screen_w: int
-    screen_h: int
-
-    # camera meta
-    cam_w: int
-    cam_h: int
-
     # head pose
     head_yaw_deg: float
     head_pitch_deg: float
     head_roll_deg: float
     head_dist_mm: float
+    head_x_mm: float
+    head_y_mm: float
+    head_z_mm: float
 
     # eye geometry (angles in deg)
     left_yaw: float
@@ -69,11 +64,9 @@ class FrameRow(BaseModel):
     right_yaw: float
     right_pitch: float
 
-
     # quality
     face_present: bool
     blink: bool
-    landmark_score: float
 
     # target (screen px) at click frames; else NaN
     target_x: float
@@ -86,3 +79,12 @@ class EventRow(BaseModel):
     target_y: int
     click_x: int
     click_y: int
+
+
+class SessionRow(BaseModel):
+    camera_model: str
+    screen_w: int
+    screen_h: int
+    cam_w: int
+    cam_h: int
+

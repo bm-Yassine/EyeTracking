@@ -41,21 +41,23 @@ def frames_logger(path: str) -> ParquetLogger:
     schema = pa.schema([
         ("t_mono", pa.float64()),
         ("frame_id", pa.int64()),
-        ("screen_w", pa.int32()),
-        ("screen_h", pa.int32()),
-        ("cam_w", pa.int32()),
-        ("cam_h", pa.int32()),
+
         ("head_yaw_deg", pa.float32()),
         ("head_pitch_deg", pa.float32()),
         ("head_roll_deg", pa.float32()),
         ("head_dist_mm", pa.float32()),
+        ("head_x_mm", pa.float32()),
+        ("head_y_mm", pa.float32()),
+        ("head_z_mm", pa.float32()),
+
         ("left_yaw", pa.float32()),
         ("left_pitch", pa.float32()),
         ("right_yaw", pa.float32()),
         ("right_pitch", pa.float32()),
+        
         ("face_present", pa.bool_()),
         ("blink", pa.bool_()),
-        ("landmark_score", pa.float32()),
+
         ("target_x", pa.float32()),
         ("target_y", pa.float32()),
     ])
@@ -69,5 +71,15 @@ def events_logger(path: str) -> ParquetLogger:
         ("target_y", pa.int32()),
         ("click_x", pa.int32()),
         ("click_y", pa.int32()),
+    ])
+    return ParquetLogger(path, schema)
+
+def session_logger(path: str) -> ParquetLogger:
+    schema = pa.schema([
+        ("camera_model", pa.string()),
+        ("screen_w", pa.int32()),
+        ("screen_h", pa.int32()),
+        ("cam_w", pa.int32()),
+        ("cam_h", pa.int32()),
     ])
     return ParquetLogger(path, schema)

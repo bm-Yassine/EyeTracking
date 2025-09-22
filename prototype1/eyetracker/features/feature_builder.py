@@ -100,8 +100,7 @@ class FeatureBuilder:
             r_outer_xc=float(r_outer[0]),
             r_outer_yc=float(r_outer[1]),
             face_present=bool(ok),
-            blink=False,  # set by caller after quality gates
-            landmark_score=float(score),
+            blink=False,  # set by caller after quality gate
             target_x=float(np.nan if target_xy is None else target_xy[0]),
             target_y=float(np.nan if target_xy is None else target_xy[1]),
         )
