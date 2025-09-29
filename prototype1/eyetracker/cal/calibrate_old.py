@@ -268,10 +268,10 @@ def main():
                             roll_2d = _wrap180(np.degrees(np.arctan2(dy, dx)))
 
                     # choose head-pose solver based on camera
-                    if cam_backend == "realsense" and depth_m is not None and _RS_AVAILABLE:
-                        hp = solve_head_pose_with_depth(out["face_landmarks"], K, depth_m)
-                    else:
-                        hp = solve_head_pose(out["face_landmarks"], K, dist, rvec0=prev_rvec, tvec0=prev_tvec)
+                    #if cam_backend == "realsense" and depth_m is not None and _RS_AVAILABLE:
+                    #    hp = solve_head_pose_with_depth(out["face_landmarks"], K, depth_m)
+                    #else:
+                    hp = solve_head_pose(out["face_landmarks"], K, dist, rvec0=prev_rvec, tvec0=prev_tvec)
 
                     if hp is not None and getattr(hp, "ok", False):
                         # base angles from headpose.smart_angles (uses eye-line when possible)

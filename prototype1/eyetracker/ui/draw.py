@@ -43,3 +43,36 @@ def draw_hud(
         cv2.putText(img, line, (16, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,0), 3, cv2.LINE_AA)
         cv2.putText(img, line, (16, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 1, cv2.LINE_AA)
         y += 26
+
+
+def draw_cross_with_circle_and_number(
+    img: np.ndarray,
+    center: Tuple[int, int],
+    number: Optional[int],
+    *,
+    cross_size: int = 18,
+    circle_radius: int = 20,
+    cross_color: Color = WHITE,
+    circle_color: Color = RED,
+    text_color: Color = YELLOW,
+    thickness: int = 2,
+) -> None:
+    """Draw a cross surrounded by a circle and an optional number."""
+    # existing cross and circle functions
+    draw_cross(img, center, size=cross_size, color=cross_color, thickness=thickness)
+    draw_circle(img, center, radius=circle_radius, color=circle_color, thickness=thickness)
+    if number is not None:
+        text = str(int(number))
+        (tw, th), baseline = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+        tx = int(center[0] - tw / 2)
+        ty = int(center[1] + th / 2)
+        cv2.putText(
+            img,
+            text,
+            (tx, ty),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            text_color,
+            2,
+            cv2.LINE_AA,
+        )
