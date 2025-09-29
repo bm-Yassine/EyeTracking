@@ -13,7 +13,7 @@ try:
 except Exception:
     _HAS_YAML = False
 
-from eyetracker.learners.rff_rls import (
+from eyetracker.rff.rff_rls import (
     RFFConfig, RLSConfig, FeatureSpec, GazeRegressorManager
 )
 from eyetracker.app.heatmap import HeatmapCanvas
@@ -109,7 +109,7 @@ def main():
     print(f"[i] Screen: {W}x{H}")
 
     # -------- Init regressor manager
-    from eyetracker.learners.rff_rls import FeatureSpec
+    from eyetracker.rff.rff_rls import FeatureSpec
     input_dims = {
         "1eye-left": 3,
         "1eye-right": 3,
@@ -119,7 +119,7 @@ def main():
     rff_cfg = RFFConfig(dim=args.rff_dim, lengthscale=args.rff_len, seed=0)
     rls_cfg = RLSConfig(ridge=args.ridge, forgetting=args.forget, huber_delta=args.huber, irls_iters=args.irls)
     spec = FeatureSpec()  # adjust here if your parquet columns differ
-    from eyetracker.learners.rff_rls import GazeRegressorManager
+    from eyetracker.rff.rff_rls import GazeRegressorManager
     mgr = GazeRegressorManager(input_dims, rff_cfg, rls_cfg, feature_spec=spec)
 
     # Fit all necessary models for chosen mode
