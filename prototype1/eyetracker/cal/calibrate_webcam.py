@@ -17,7 +17,7 @@ from ..video.writer import VideoWriterMP4
 from ..vision.mediapipe_iris import MediaPipeIris
 from ..vision.spiga_adapter import SpigaAdapter
 from ..vision.camera_model import load_intrinsics
-from ..vision.headpose_fixed import solve_head_pose, smart_angles, _closest_equivalent, _wrap180
+from ..vision.headpose import solve_head_pose, smart_angles, _closest_equivalent, _wrap180
 
 from ..io.logger import frames_logger, events_logger, session_logger
 

@@ -1,8 +1,5 @@
 # File: eyetracker/learners/rff_rls.py
 # NumPy-only core (RFF + Ridge + RLS + Huber IRLS) for per-user gaze mapping.
-# Optional pandas-based parquet loader for Part A calibration data.
-# Author: You (integrated for Part B)
-# License: same as your project
 
 from __future__ import annotations
 import numpy as np

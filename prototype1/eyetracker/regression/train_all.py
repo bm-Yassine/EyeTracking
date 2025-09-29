@@ -4,10 +4,6 @@ Reads Part A session folder (frames parquet + config_snapshot.yaml),
 trains ALL three regressors, runs K-fold cross‑validation, writes a report,
 OOF predictions, and saves final models for live use.
 
-Place this file at: eyetracker/regression/train_all.py
-
-Dependencies: numpy, pandas, pyarrow (for parquet), pyyaml.
-
 CLI:
   python -m eyetracker.regression.train_all \
       --data-dir data/session_001/ \
@@ -20,8 +16,6 @@ Filtering behavior:
 - By default, rows WITHOUT a detected face are dropped (if a face column is found),
   and rows marked as a blink are dropped (if blink columns are found).
 - You can disable each filter with --filter-face 0 or --filter-blinks 0.
-- If you don't pass column names, the trainer will try to auto-detect typical
-  column names from Part A logs.
 
 Outputs (inside --outdir):
   models/

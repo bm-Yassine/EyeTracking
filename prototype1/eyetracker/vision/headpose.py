@@ -29,19 +29,36 @@ MODEL_3D = np.array([
 @dataclass
 class HeadPose:
     ok: bool
-    rvec: Optional[np.ndarray] = None
-    tvec: Optional[np.ndarray] = None
-    R: Optional[np.ndarray] = None
-    yaw_deg: float = np.nan     #left/right
-    pitch_deg: float = np.nan   #up/down
-    roll_deg: float = np.nan    #titlr
+    rvec: list | None = None       # [rx, ry, rz] in radians
+    tvec: list | None = None       # [tx, ty, tz] in mm
+    R: list | None = None          # 3×3 rotation matrix
+    yaw_deg: float = np.nan
+    pitch_deg: float = np.nan
+    roll_deg: float = np.nan
     distance_mm: float = np.nan
     reproj_err: float = np.nan
-    # 3‑D centre of the head in camera coordinates (mm); None if pose is invalid
-    center_mm: Optional[np.ndarray] = None    # convenience scalars for each coordinate
+    center_mm: list | None = None  # [cx, cy, cz] in mm
     head_x_mm: float = np.nan
     head_y_mm: float = np.nan
     head_z_mm: float = np.nan
+
+    @property
+    def yaw(self) -> float: return self.yaw_deg
+    @property
+    def pitch(self) -> float: return self.pitch_deg
+    @property
+    def roll(self) -> float: return self.roll_deg
+    @property
+    def distance(self) -> float: return self.distance_mm
+    @property
+    def center(self) -> list | None: return self.center_mm
+    @property
+    def head_x(self) -> float: return self.head_x_mm
+    @property
+    def head_y(self) -> float: return self.head_y_mm
+    @property
+    def head_z(self) -> float: return self.head_z_mm
+
 
 def _collect_points(face_landmarks: np.ndarray) -> Optional[np.ndarray]:
     try:
@@ -81,27 +98,26 @@ def roll_from_eye_line_deg(left_eye_outer: np.ndarray, right_eye_outer: np.ndarr
     except Exception:
         return None
 
-def solve_head_pose(
-    face_landmarks: np.ndarray,
-    K: np.ndarray,
-    dist: np.ndarray | None = None,
-    rvec0: np.ndarray | None = None,
-    tvec0: np.ndarray | None = None,
-) -> HeadPose:
+def solve_head_pose(face_landmarks: np.ndarray,
+                    K: np.ndarray,
+                    dist: np.ndarray | None = None,
+                    rvec0: np.ndarray | None = None,
+                    tvec0: np.ndarray | None = None) -> HeadPose:
     img_pts = _collect_points(face_landmarks)
-    if img_pts is None or img_pts.shape != (8,2):
+    if img_pts is None or img_pts.shape != (8, 2):
         return HeadPose(ok=False)
 
     obj_pts = MODEL_3D
     K = np.asarray(K, dtype=np.float64)
-    dist = np.zeros((5,1), dtype=np.float64) if dist is None else np.asarray(dist, np.float64).reshape(-1,1)
+    dist = np.zeros((5, 1), dtype=np.float64) if dist is None else np.asarray(dist, np.float64).reshape(-1, 1)
 
-    # 1 RANSAC EPNP
+    # estimate pose (same as before) …
     ok, rvec, tvec, _ = cv2.solvePnPRansac(
         obj_pts, img_pts, K, dist,
         iterationsCount=300, reprojectionError=2.0,
         flags=cv2.SOLVEPNP_EPNP
     )
+
     # 2 fallback: ITERATIVE
     if not ok:
         if rvec0 is not None and tvec0 is not None:
@@ -126,34 +142,37 @@ def solve_head_pose(
         pass
 
     R, _ = cv2.Rodrigues(rvec)
-
-    yaw, pitch, roll =  euler_zyx_from_R(R)
-
-    proj, _ = cv2.projectPoints(obj_pts, rvec, tvec, K, dist)
-    err = float(np.sqrt(np.mean(np.sum((proj.reshape(-1,2) - img_pts)**2, axis=1))))
-    dist_mm = float(np.linalg.norm(tvec))
+    yaw, pitch, roll = euler_zyx_from_R(R)
 
     # compute approximate head centre in camera coordinates
-    # The translation vector `tvec` from solvePnP transforms points from the object frame into
-    # the camera frame:contentReference[oaicite:2]{index=2}.  We transform the 3‑D model landmarks and take the mean.
     pts_cam = (R @ obj_pts.T).T + tvec.reshape(3)
-    center = np.mean(pts_cam, axis=0)
+    center = np.mean(pts_cam, axis=0)  # np.ndarray of shape (3,)
+
+    # convert everything to Python built‑ins for easy serialisation
+    rvec_list = rvec.astype(float).reshape(-1).tolist()
+    tvec_list = tvec.astype(float).reshape(-1).tolist()
+    R_list = R.astype(float).tolist()
+    center_list = center.astype(float).tolist()
+
+    dist_mm = float(np.linalg.norm(tvec))
+    reproj_points, _ = cv2.projectPoints(obj_pts, rvec, tvec, K, dist)
+    err = float(np.sqrt(np.mean(np.sum((reproj_points.reshape(-1, 2) - img_pts)**2, axis=1))))
+
     return HeadPose(
         ok=True,
-        rvec=rvec,
-        tvec=tvec,
-        R=R,
-        yaw_deg=yaw,
-        pitch_deg=pitch,
-        roll_deg=roll,
+        rvec=rvec_list,
+        tvec=tvec_list,
+        R=R_list,
+        yaw_deg=float(yaw),
+        pitch_deg=float(pitch),
+        roll_deg=float(roll),
         distance_mm=dist_mm,
         reproj_err=err,
-        center_mm=center,
-        head_x_mm=float(center[0]),
-        head_y_mm=float(center[1]),
-        head_z_mm=float(center[2]),
+        center_mm=center_list,
+        head_x_mm=center_list[0],
+        head_y_mm=center_list[1],
+        head_z_mm=center_list[2],
     )
-
 
 def smart_angles(
     hp,
