@@ -43,10 +43,85 @@ from ..video.capture import VideoCaptureThread
 from ..video.writer import VideoWriterMP4
 from ..vision.mediapipe_iris import MediaPipeIris
 from ..vision.camera_model import load_intrinsics
-from ..vision.headpose import solve_head_pose, smart_angles
+from ..vision.headpose import HeadPoseEstimator
 from ..io.logger import frames_logger, events_logger
 
 from ..quality.gates import blink_surrogate
+
+
+###
+def _extract_pnp_points(out: dict, cam_w: int, cam_h: int) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Build a small but stable 2D-3D correspondence set for PnP.
+    Uses:
+      - Nose tip (FaceMesh landmark ~1 or 4; we try both)
+      - Left/Right outer eye corners (from 'left_eye_corners'/'right_eye_corners')
+      - Mouth corners (FaceMesh ~61, 291) if available
+    3D face model is a coarse template in millimeters; scale is arbitrary but consistent.
+    """
+    obj_pts = []
+    img_pts = []
+
+    def to_px(pt):
+        # Accept either absolute pixel coords or normalized [0,1] coords
+        x, y = float(pt[0]), float(pt[1])
+        if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0:
+            x *= cam_w
+            y *= cam_h
+        return np.array([x, y], dtype=np.float64)
+
+    # 3D template (mm): rough anthropometric placement
+    # (origin at nose tip; +X right, +Y down image, +Z forward)
+    TEMPLATE = {
+        "nose_tip"      : np.array([   0.0,    0.0,    0.0], dtype=np.float64),
+        "eye_outer_L"   : np.array([ -32.0,  34.0,  -18.0], dtype=np.float64),
+        "eye_outer_R"   : np.array([  32.0,  34.0,  -18.0], dtype=np.float64),
+        "mouth_left"    : np.array([ -26.0, -35.0,  -14.0], dtype=np.float64),
+        "mouth_right"   : np.array([  26.0, -35.0,  -14.0], dtype=np.float64),
+    }
+    # Nose tip from face_landmarks (fallback between common indices)
+    flms = out.get("face_landmarks")
+    nose_tip = None
+    if isinstance(flms, np.ndarray) and flms.ndim >= 2 and flms.shape[-1] >= 2:
+        # Try indices 1 then 4 (common FaceMesh "tip" candidates)
+        for idx in (1, 4):
+            if 0 <= idx < len(flms):
+                nose_tip = to_px(flms[idx][:2])
+                break
+    if nose_tip is not None:
+        obj_pts.append(TEMPLATE["nose_tip"])
+        img_pts.append(nose_tip)
+
+    # Eye outer corners from provided corners arrays
+    lec = out.get("left_eye_corners")   # shape (2,2): [inner, outer]
+    rec = out.get("right_eye_corners")  # shape (2,2): [inner, outer]
+    if isinstance(lec, np.ndarray) and lec.shape == (2, 2):
+        obj_pts.append(TEMPLATE["eye_outer_L"])
+        img_pts.append(to_px(lec[1]))   # outer
+    if isinstance(rec, np.ndarray) and rec.shape == (2, 2):
+        obj_pts.append(TEMPLATE["eye_outer_R"])
+        img_pts.append(to_px(rec[1]))   # outer
+
+    # Mouth corners (if face_landmarks available; MediaPipe indices ~61, 291)
+    for idx, key in ((61, "mouth_left"), (291, "mouth_right")):
+        if isinstance(flms, np.ndarray) and 0 <= idx < len(flms):
+            obj_pts.append(TEMPLATE[key])
+            img_pts.append(to_px(flms[idx][:2]))
+
+    if len(obj_pts) < 4:
+        # As a last resort, try iris centers to reach 4 points (approximate z equal to eye corners)
+        iris = out.get("iris_centers", {})
+        if "left" in iris and len(obj_pts) < 4:
+            obj_pts.append(TEMPLATE["eye_outer_L"] + np.array([+6.0, 0.0, +2.0]))
+            img_pts.append(to_px(iris["left"]))
+        if "right" in iris and len(obj_pts) < 4:
+            obj_pts.append(TEMPLATE["eye_outer_R"] + np.array([-6.0, 0.0, +2.0]))
+            img_pts.append(to_px(iris["right"]))
+
+    if len(obj_pts) < 4:
+        return np.empty((0, 3), np.float64), np.empty((0, 2), np.float64)
+    return np.asarray(obj_pts, np.float64), np.asarray(img_pts, np.float64)
+
 
 
 ###
@@ -172,8 +247,7 @@ def main() -> None:
     args = parse_args()
     cfg = _load_config(args.config)
 
-    live_reg = args.live_regress
-    rls = None
+    
 
     # Screen & grid
     sw, sh = _screen_size_tk()
@@ -273,8 +347,17 @@ def main() -> None:
     calibration_start_time: Optional[float] = None
     last_logged_idx = -1
     frame_counter = 0
-    prev_rvec: Optional[np.ndarray] = None
-    prev_tvec: Optional[np.ndarray] = None
+
+
+    #prev_rvec: Optional[np.ndarray] = None
+    #prev_tvec: Optional[np.ndarray] = None
+
+     # Head pose estimator (P3P + RANSAC + refine)
+    hp_est = HeadPoseEstimator(
+        K=K, dist=dist,
+        ransac_iters=800, ransac_err_px=3.0, ransac_conf=0.999,
+        allow_mirrored=False
+    )
 
     try:
         while True:
@@ -300,17 +383,13 @@ def main() -> None:
             yaw = pitch = roll = np.nan
             if face_ok and K is not None:
                 try:
-                    hp = solve_head_pose(out["face_landmarks"], K, dist, rvec0=prev_rvec, tvec0=prev_tvec)
-                    if hp.ok:
-                        le = out.get("left_eye_corners")
-                        re = out.get("right_eye_corners")
-                        left_outer  = le[1] if (isinstance(le, np.ndarray) and le.shape == (2, 2)) else None
-                        right_outer = re[1] if (isinstance(re, np.ndarray) and re.shape == (2, 2)) else None
-                        yaw, pitch, roll = smart_angles(hp, left_outer, right_outer)
-                        prev_rvec, prev_tvec = hp.rvec, hp.tvec
+                    obj_pts, img_pts = _extract_pnp_points(out, cam_w_actual, cam_h_actual)
+                    if obj_pts.shape[0] >= 4:
+                        hp = hp_estimate = hp_est.estimate(obj_pts, img_pts)
+                        if hp.ok:
+                            yaw, pitch, roll = float(hp.yaw), float(hp.pitch), float(hp.roll)
                 except Exception:
                     hp = None
-
 
             # Per‑eye angles
             left_angles = (np.nan, np.nan)
@@ -338,11 +417,11 @@ def main() -> None:
                 "head_yaw_deg": float(yaw),
                 "head_pitch_deg": float(pitch),
                 "head_roll_deg": float(roll),
-                "head_dist_mm": float(hp.distance_mm) if hp is not None and hp.ok else float("nan"),
-                "head_x_mm": float(hp.head_x_mm) if hp is not None and hp.ok else float("nan"),
-                "head_y_mm": float(hp.head_y_mm) if hp is not None and hp.ok else float("nan"),
-                "head_z_mm": float(hp.head_z_mm) if hp is not None and hp.ok else float("nan"),
-                "left_yaw": float(left_angles[0]),
+                "head_dist_mm": float(np.linalg.norm(hp.tvec.ravel())) if hp is not None and hp.ok else float("nan"),
+                "head_x_mm": float(hp.tvec.ravel()[0]) if hp is not None and hp.ok else float("nan"),
+                "head_y_mm": float(hp.tvec.ravel()[1]) if hp is not None and hp.ok else float("nan"),
+                "head_z_mm": float(hp.tvec.ravel()[2]) if hp is not None and hp.ok else float("nan"),
+               "left_yaw": float(left_angles[0]),
                 "left_pitch": float(left_angles[1]),
                 "right_yaw": float(right_angles[0]),
                 "right_pitch": float(right_angles[1]),
