@@ -34,6 +34,7 @@ from typing import Optional, Tuple
 
 import cv2
 import numpy as np
+import pandas as pd
 import yaml
 
 from ..ui.grid import GridSpec, sequence
@@ -44,6 +45,45 @@ from ..vision.mediapipe_iris import MediaPipeIris
 from ..vision.camera_model import load_intrinsics
 from ..vision.headpose import solve_head_pose, smart_angles
 from ..io.logger import frames_logger, events_logger
+
+from ..quality.gates import blink_surrogate
+
+
+###
+
+class OnlineRLS2D:
+    """
+    Recursive Least Squares for y in R^2 with forgetting factor.
+    Learns W in R^{D x 2}:  y_hat = x^T W
+    """
+    def __init__(self, D: int, lam_init: float = 1000.0, ff: float = 0.995):
+        self.D = int(D)
+        self.W = np.zeros((self.D, 2), dtype=np.float64)
+        # P ~ inverse covariance; large diagonal = high initial uncertainty
+        self.P = (1.0 / lam_init) * np.eye(self.D, dtype=np.float64)
+        self.ff = float(ff)  # forgetting factor in (0,1]; lower = faster adaptation
+        self.n_obs = 0
+
+    def update(self, x: np.ndarray, y: np.ndarray):
+        """ x: (D,), y: (2,) """
+        x = np.asarray(x, np.float64).reshape(-1, 1)
+        y = np.asarray(y, np.float64).reshape(1, 2)
+        # Gain
+        denom = self.ff + float(x.T @ self.P @ x)
+        K = (self.P @ x) / denom  # (D,1)        
+        # Residual using current W
+        y_hat = (x.T @ self.W)    # (1,2)
+        # Update W and P
+        self.W = self.W + K @ (y - y_hat)  # (D,2)
+        self.P = (self.P - (K @ x.T @ self.P)) / self.ff
+        self.n_obs += 1
+
+    def predict(self, x: np.ndarray) -> np.ndarray:
+        x = np.asarray(x, np.float64).reshape(-1)
+        return (x @ self.W).reshape(2,)
+
+
+###
 
 
 class ClickState:
@@ -88,6 +128,18 @@ def parse_args() -> argparse.Namespace:
                     help="Display FPS and detector status overlay")
     ap.add_argument("--record", action="store_true",
                     help="Write an MP4 alongside the calibration session")
+    ap.add_argument(
+        "--live-regress", action="store_true",
+        help="Enable online linear regressor and draw live predicted gaze point"
+    )
+    ap.add_argument(
+        "--ff", type=float, default=0.995,
+        help="RLS forgetting factor (0<ff<=1); smaller adapts faster (default: 0.995)"
+    )
+    ap.add_argument(
+        "--rls-lam", type=float, default=1000.0,
+        help="Initial inverse covariance scale for RLS (bigger = more plastic at start)."
+    )
     return ap.parse_args()
 
 
@@ -119,6 +171,9 @@ def next_session_dir(base: Path) -> Path:
 def main() -> None:
     args = parse_args()
     cfg = _load_config(args.config)
+
+    live_reg = args.live_regress
+    rls = None
 
     # Screen & grid
     sw, sh = _screen_size_tk()
@@ -205,6 +260,7 @@ def main() -> None:
     if args.record:
         writer = VideoWriterMP4(str(sess_dir / "video.mp4"), size=(cam_w_actual, cam_h_actual), fps=fps)
         print(f"[i] Recording to: {writer.actual_path}")
+   
 
     # UI
     win = "EyeTracker Calibration"
@@ -236,9 +292,8 @@ def main() -> None:
             # Quality gates
             face_ok = bool(out.get("ok", False))
             blink = False
-            score = float(out.get("score", 0.0))
-            if score < 0.10:
-                blink = True
+            if face_ok:
+                blink, ear_left, ear_right = blink_surrogate(out)
 
             # Head pose
             hp = None
@@ -256,6 +311,7 @@ def main() -> None:
                 except Exception:
                     hp = None
 
+
             # Per‑eye angles
             left_angles = (np.nan, np.nan)
             right_angles = (np.nan, np.nan)
@@ -270,6 +326,9 @@ def main() -> None:
                 if isinstance(rec, np.ndarray) and rec.shape == (2, 2) and ric is not None:
                     right_center = 0.5 * (rec[0] + rec[1])
                     right_angles = eye_angles_deg(ric, right_center, fx, fy)
+
+     
+                
 
             # Build row; target_x/target_y will be filled per phase
             t_row = float(t_cam if t_cam is not None else time.monotonic())

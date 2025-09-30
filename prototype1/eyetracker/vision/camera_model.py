@@ -4,7 +4,6 @@ import cv2
 import numpy as np
 from dataclasses import dataclass
 from typing import Tuple
-from . import camera_utils 
 from ..io.schemas import CameraIntrinsics
 
 def load_intrinsics(path: str) -> CameraIntrinsics:

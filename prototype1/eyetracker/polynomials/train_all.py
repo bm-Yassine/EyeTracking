@@ -5,12 +5,11 @@ trains ALL three regressors, runs K-fold cross‑validation, writes a report,
 OOF predictions, and saves final models for live use.
 
 CLI:
-  python -m eyetracker.regression.train_all \
+  python3 -m eyetracker.regression.train_all \
       --data-dir data/session_001/ \
       --kfold 5 --degree 3 --alpha 1e-2 --min-conf 0.0 \
       --outdir models/session_001 --triangulate \
-      --filter-face 1 --filter-blinks 1 \
-      --face-col face_present --blink-cols blink_L,blink_R
+      --filter-face 1 --filter-blinks 1 
 
 Filtering behavior:
 - By default, rows WITHOUT a detected face are dropped (if a face column is found),

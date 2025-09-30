@@ -75,7 +75,7 @@ except Exception:
     cv2 = None
     _HAS_CV2 = False
 
-from eyetracker.learners.polynomial import (
+from eyetracker.polynomials import (
     FeatureSpec,
     PolyRegressorManager,
 )
